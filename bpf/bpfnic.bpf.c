@@ -295,7 +295,7 @@ bpfnic_benchmark_parse_and_timestamp_packet(struct xdp_md *ctx,
 SEC("xdp")
 int bpf_redirect_roundrobin(struct xdp_md *ctx)
 {
-	__u32 *cpu_selected, *cpu_iterator, *cpu_count;
+	__u32 *cpu_selected, *cpu_iterator, *cpu_count, *cpu_available;
 	struct packet *packet;
 	__u64 *rx_ctr;
 	__u32 cpu_dest = 0;
@@ -316,8 +316,35 @@ int bpf_redirect_roundrobin(struct xdp_md *ctx)
 		return XDP_PASS;
 	}
 
-	// TODO: make redirection decision
-	return XDP_DROP;
+	// get cpu count
+	cpu_count = bpf_map_lookup_elem(&cpus_count, &key0);
+	if (!cpu_count) {
+		return XDP_DROP;
+	}
+
+	// get the next cpu to send a packet to
+	cpu_iterator = bpf_map_lookup_elem(&cpu_iter, &key0);
+	if (!cpu_iterator) {
+		return XDP_DROP;
+	}
+
+	// adjust the iterator (no sync needed!)
+	cpu_idx = *cpu_iterator;
+	*cpu_iterator = (cpu_idx + 1) % *cpu_count;
+
+	// check if the chosen cpu is available (XDP_ABORTED if not)
+	cpu_available = bpf_map_lookup_elem(&cpus_available, &cpu_idx);
+	if (!cpu_available) {
+		return XDP_DROP;
+	}
+
+	if (!*cpu_available) {
+		return XDP_ABORTED;
+	}
+
+	// redirect
+	return bpf_redirect_map(&cpu_map, cpu_idx, 0);
+
 }
 
 /* array of cpus available for processing long requests */
