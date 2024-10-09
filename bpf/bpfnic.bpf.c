@@ -381,10 +381,8 @@ struct {
 SEC("xdp")
 int bpf_redirect_roundrobin_core_separated(struct xdp_md *ctx)
 {
-	__u32 *cpu_selected, *cpu_iterator_short, *cpu_iterator_long;
-	__u32 *cpu_count_long, *cpu_count_short;
+	__u32 *cpu_iterator, *cpu_count, *cpu_selected;
 	struct packet *packet;
-	void *selected_map;
 	__u32 cpu_dest = 0;
 	__u32 key0 = 0;
 	__u32 key1 = 1;
@@ -402,8 +400,52 @@ int bpf_redirect_roundrobin_core_separated(struct xdp_md *ctx)
 	if (!bpfnic_benchmark_parse_and_timestamp_packet(ctx, &nh))
 		return XDP_PASS;
 
-	// TODO: make redirection decision
-	return XDP_DROP;
+	packet = (struct packet*) nh.pos;
+	if (&packet->data + 1 > data_end) {
+		return XDP_DROP;
+	}
+
+	// in order to have request-type-agnostic procedure,
+	// get pointers to required data depending on request type
+	__u32* p_key;
+	void* p_cpu_available_core_separated;
+
+	if (packet->data < 10) {
+		// short request
+		p_key = &key0;
+		p_cpu_available_core_separated = &cpus_available_short_reqs;
+	} else {
+		//long request
+		p_key = &key1;
+		p_cpu_available_core_separated = &cpus_available_long_reqs;
+	}
+
+	// get cpu count
+	cpu_count = bpf_map_lookup_elem(&cpu_count_core_separated, p_key);
+	if (!cpu_count) {
+		return XDP_DROP;
+	}
+
+	// get the next cpu to send a packet to
+	cpu_iterator = bpf_map_lookup_elem(&cpu_iter_core_separated, p_key);
+	if (!cpu_iterator) {
+		return XDP_DROP;
+	}
+
+	// adjust the iterator (no sync needed!)
+	cpu_idx = *cpu_iterator;
+	*cpu_iterator = (cpu_idx + 1) % *cpu_count;
+
+	// choose a cpu
+	cpu_selected = bpf_map_lookup_elem(p_cpu_available_core_separated, &cpu_idx);
+	if (!cpu_selected) {
+		return XDP_ABORTED;
+	}
+	
+	cpu_dest = *cpu_selected;
+	
+	// redirect
+	return bpf_redirect_map(&cpu_map, cpu_dest, 0);
 }
 
 SEC("tc")
