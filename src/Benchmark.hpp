@@ -105,16 +105,18 @@ class Benchmark {
   uint64_t packetsOut = 0;
   uint64_t packetsIn = 0;
 
-  std::pair<LatencyHistogramVec, LatencyHistogramVec> mergeClientHistograms() {
+  std::tuple<LatencyHistogramVec, LatencyHistogramVec, LatencyHistogramVec> mergeClientHistograms() {
     LatencyHistogramVec rtt = clients[0]->getRoundtripHistogram();
     LatencyHistogramVec qd = clients[0]->getQueuingDelayHistogram();
+    LatencyHistogramVec cnt = clients[0]->getReceivedPacketCountHistogram();
 
     for (unsigned i = 1; i < clients.size(); i++) {
       rtt.mergeWith(clients[i]->getRoundtripHistogram());
       qd.mergeWith(clients[i]->getQueuingDelayHistogram());
+      cnt.mergeWith(clients[i]->getReceivedPacketCountHistogram());
     }
 
-    return {rtt, qd};
+    return {rtt, qd, cnt};
   }
 
   void executeWindow(int duration, uint64_t throughput) {
@@ -156,8 +158,9 @@ class Benchmark {
 
   void writeResults(std::string prefix) {
     auto histograms = mergeClientHistograms();
-    histograms.first.writeToCSV(prefix + "_rtt.csv");
-    histograms.second.writeToCSV(prefix + "_qd.csv");
+    std::get<0>(histograms).writeToCSV(prefix + "_rtt.csv");
+    std::get<1>(histograms).writeToCSV(prefix + "_qd.csv");
+    std::get<2>(histograms).writeToCSV(prefix + "_cnt.csv");
   }
 };
 

@@ -108,6 +108,8 @@ class Client {
 
   LatencyHistogramVec getQueuingDelayHistogram() { return queuingDelayHistogram; }
 
+  LatencyHistogramVec getReceivedPacketCountHistogram() { return receivedPacketCountHistogram; }
+
   void incrementTokens(uint64_t by) { tokenBucket->fetch_add(by); }
   void setThroughput(uint64_t newThroughput) { throughputRps = newThroughput; }
 
@@ -119,6 +121,7 @@ class Client {
 
   LatencyHistogramVec roundTripHistogram;
   LatencyHistogramVec queuingDelayHistogram;
+  LatencyHistogramVec receivedPacketCountHistogram {1000000};
 
   // finite bucket of tokens used for rate limiting
   std::unique_ptr<std::atomic<uint64_t>> tokenBucket;
@@ -143,7 +146,8 @@ class Client {
     /// interpret the element in the receive buffer as a packet
     struct packet *p = (struct packet *)udpSocket->getRecvBuffer();
 
-    uint64_t roundtripNanos = getTimeStamp() - p->leave_client_timestamp;
+    uint64_t now = getTimeStamp();
+    uint64_t roundtripNanos = now - p->leave_client_timestamp;
     uint64_t queuingDelayNanos = p->leave_server_timestamp - p->reach_server_timestamp;
 
     LabelValues l = {
@@ -153,6 +157,7 @@ class Client {
 
     roundTripHistogram.increment(l, roundtripNanos);
     queuingDelayHistogram.increment(l, queuingDelayNanos);
+    receivedPacketCountHistogram.increment(l, now);
 
     return Err::NoError;
   }
