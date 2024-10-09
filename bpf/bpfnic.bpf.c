@@ -224,7 +224,8 @@ int bpfnic_benchmark_cpu_func(struct xdp_md *ctx)
 	}
 
 	// loop for 10 times the data portion of the packet
-	bpf_loop(((int)packet->data) * 10, _empty_loop_func, NULL, 0);
+	int loop_cnt = packet->data >= 10 ? 100000 : 1000;
+	bpf_loop(loop_cnt, _empty_loop_func, NULL, 0);
 
 	tx_packets = bpf_map_lookup_elem(&tx_packet_ctr, &key0);
 	if (tx_packets) {
@@ -295,7 +296,7 @@ bpfnic_benchmark_parse_and_timestamp_packet(struct xdp_md *ctx,
 SEC("xdp")
 int bpf_redirect_roundrobin(struct xdp_md *ctx)
 {
-	__u32 *cpu_selected, *cpu_iterator, *cpu_count, *cpu_available;
+	__u32 *cpu_iterator, *cpu_count, *cpu_available;
 	struct packet *packet;
 	__u64 *rx_ctr;
 	__u32 cpu_dest = 0;
