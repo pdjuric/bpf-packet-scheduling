@@ -296,7 +296,7 @@ bpfnic_benchmark_parse_and_timestamp_packet(struct xdp_md *ctx,
 SEC("xdp")
 int bpf_redirect_roundrobin(struct xdp_md *ctx)
 {
-	__u32 *cpu_iterator, *cpu_count, *cpu_available;
+	__u32 *cpu_iterator, *cpu_count, *cpu_selected;
 	struct packet *packet;
 	__u64 *rx_ctr;
 	__u32 cpu_dest = 0;
@@ -334,17 +334,15 @@ int bpf_redirect_roundrobin(struct xdp_md *ctx)
 	*cpu_iterator = (cpu_idx + 1) % *cpu_count;
 
 	// check if the chosen cpu is available (XDP_ABORTED if not)
-	cpu_available = bpf_map_lookup_elem(&cpus_available, &cpu_idx);
-	if (!cpu_available) {
-		return XDP_DROP;
-	}
-
-	if (!*cpu_available) {
+	cpu_selected = bpf_map_lookup_elem(&cpus_available, &cpu_idx);
+	if (!cpu_selected) {
 		return XDP_ABORTED;
 	}
 
+	cpu_dest = *cpu_selected;
+
 	// redirect
-	return bpf_redirect_map(&cpu_map, cpu_idx, 0);
+	return bpf_redirect_map(&cpu_map, cpu_dest, 0);
 
 }
 
