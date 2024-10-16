@@ -121,7 +121,7 @@ class Client {
 
   LatencyHistogramVec roundTripHistogram;
   LatencyHistogramVec queuingDelayHistogram;
-  LatencyHistogramVec receivedPacketCountHistogram {1000000};
+  LatencyHistogramVec receivedPacketCountHistogram {5000000};
 
   // finite bucket of tokens used for rate limiting
   std::unique_ptr<std::atomic<uint64_t>> tokenBucket;

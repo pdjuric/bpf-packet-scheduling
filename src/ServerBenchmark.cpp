@@ -366,8 +366,10 @@ void addOneCPU(int countFd) {
   int key0 = 0;
   if (bpf_map_lookup_elem(countFd, &key0, &cpuCount)) exit(1);
 
-  // TODO: Code to add a CPU
-  // cpuCount after lookup will contain the current value
+  if (cpuCount < MAX_CPUS) {
+    cpuCount++;
+    bpf_map_update_elem(countFd, &key0, &cpuCount, 0);
+  }
 }
 
 /// removes one CPU from the core group
@@ -376,10 +378,11 @@ void removeOneCPU(int countFd) {
   int key0 = 0;
   if (bpf_map_lookup_elem(countFd, &key0, &cpuCount)) exit(1);
 
-  // TODO: Code to remove a CPU
-  // cpuCount after lookup will contain the current value
+  if (cpuCount > MIN_CPUS) {
+    cpuCount++;
+    bpf_map_update_elem(countFd, &key0, &cpuCount, 0);
+  }
 }
-
 /// @return the average queuing delay across all cores that have sent packets
 double computeAverageQueuingDelay(int totalSrvTimeFd, int txCtrFd) {
   int key0 = 0;
@@ -505,9 +508,14 @@ int redirectProgDynamicCoreAllocation(std::vector<int>& availCpus, std::string& 
       }
     }
 
-    // BEGIN: CORE ADDITION LOGIC
-    // TODO: Add logic to observe queueing delay and add cores
-    // END: CORE ADDITION LOGIC
+    double avgQdNs = computeAverageQueuingDelay(totalSrvTimeFd, txCtrFd);
+    double avgQdUs = avgQdNs / 1000.0;
+
+    if (avgQdUs > 2000.0) {
+        addOneCPU(countFd);
+    } else if (avgQdUs < 1000.0) {
+        removeOneCPU(countFd);
+    }
 
     // clear arrays - state is kept per-window
     std::fill(std::begin(srvTimes), std::end(srvTimes), 0);

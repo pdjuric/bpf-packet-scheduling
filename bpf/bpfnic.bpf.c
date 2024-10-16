@@ -224,7 +224,7 @@ int bpfnic_benchmark_cpu_func(struct xdp_md *ctx)
 	}
 
 	// loop for 10 times the data portion of the packet
-	int loop_cnt = packet->data >= 10 ? 100000 : 1000;
+	int loop_cnt = packet->data >= 10 ? 10000 : 100;
 	bpf_loop(loop_cnt, _empty_loop_func, NULL, 0);
 
 	tx_packets = bpf_map_lookup_elem(&tx_packet_ctr, &key0);
